@@ -62,7 +62,13 @@ class Eth100(fabric.Fabric):
       (25.0,  'aoc', 550,  3.5*2),
       (30.0,  'aoc', 570,  3.5*2),
       (50.0,  'aoc', 590,  3.5*2),  # a guess
-      (75.0,  'aoc', 640,  3.5*2)]  # a guess
+      (75.0,  'aoc', 640,  3.5*2),  # a guess
+      (100.0, 'aoc', 750,  3.5*2),  # a guess
+      (200.0, 'aoc', 2000,  3.5*2)]  # a guess
+
+  def _make_interface(self, minimum_radix):
+    assert minimum_radix <= 1, 'Eth100 only supports 1 port interfaces'
+    return fabric.Interface(1)
 
   def _make_router(self, minimum_radix):
     assert minimum_radix <= 64, 'Eth100 only supports 64 port routers'
@@ -76,6 +82,11 @@ class Eth100(fabric.Fabric):
         else:
           return fabric.Cable(minimum_length, minimum_length)
     assert False, 'no cable available for length: {}'.format(minimum_length)
+
+  def _set_interface_attributes(self, interface, count):
+    interface.tech = '100GbE'
+    interface.cost = 500
+    interface.power = 50
 
   def _set_router_attributes(self, router, count):
     router.tech = '100GbE'

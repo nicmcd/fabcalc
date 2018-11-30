@@ -37,16 +37,15 @@ import layout
 import topology
 import utils
 
-class FatTree(topology.Topology):
+class FatTreeDIR(topology.Topology):
   """
-  A standard multi-level fat tree.
+  A standard 3-level fat tree using leaf switches and director switches.
   """
 
   def __init__(self, **kwargs):
-    super(FatTree, self).__init__(**kwargs)
+    super(FatTreeDIR, self).__init__(**kwargs)
 
     # mandatory
-
     self._leaves = None
     self._down_ports = None
     self._up_ports = None
@@ -71,7 +70,7 @@ class FatTree(topology.Topology):
         self._director_radix = int(kwargs[key])
       elif key == 'director_rack_inset':
         self._director_rack_inset = int(kwargs[key])
-      elif key in super(FatTree, self).using_options():
+      elif key in super(FatTreeDIR, self).using_options():
         pass
       else:
         assert False, 'unknown option key: {}'.format(key)

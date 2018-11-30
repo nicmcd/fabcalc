@@ -46,7 +46,28 @@ class Topology(object):
     """
     Constructs a Topology object
     """
-    pass
+    self._cable_groups = [[0, 99999999, 0, 0, 'All']]
+    self._cable_group = -1
+
+  def _create_cable_groups(self, names):
+    """
+    This create cable groups so that each topology can have specific groups
+
+    Args:
+      names (str array) : the names of the groups
+    """
+    for name in names:
+      self._cable_groups.append([0, 99999999, 0, 0, name])
+
+  def _set_cable_group(self, group):
+    """
+    Sets the group that the next generated cables will assigned to
+
+    Args:
+      group (int) : group identifier
+    """
+    assert group < len(self._cable_groups) - 1, 'invalid group id'
+    self._cable_group = group
 
   def structure(self):
     """
@@ -60,6 +81,13 @@ class Topology(object):
     """
     raise NotImplementedError('subclasses must override this')
 
+  def interfaces(self):
+    """
+    This is a generator that generates (radix, count) tuples
+    'radix' and 'count' are of type int
+    """
+    raise NotImplementedError('subclasses must override this')
+
   def routers(self):
     """
     This is a generator that generates (radix, count) tuples
@@ -67,27 +95,60 @@ class Topology(object):
     """
     raise NotImplementedError('subclasses must override this')
 
-  def cables(self):
+  def external_cables(self):
     """
-    This is a generator that generates (source, destination, count) tuples
-    'source' and 'destination' are of type layout.Coordinate
+    This is a generator that generates (node, router, count) tuples.
+    'node' is a node ID. 'router' is a router ID. Both are of type int.
     'count' is of type int
+    """
+    raise NotImplementedError('subclasses must override this')
+
+  def internal_cables(self):
+    """
+    This is a generator that generates (router, router, count) tuples.
+    'router' is a router ID. Both are of type int. 'count' is of type int
     """
     raise NotImplementedError('subclasses must override this')
 
   def notify_length(self, length, count):
     """
-    This notifies the topology module of the length of cables generated. This
-    can be used by the topology module to generate topology specific cable
-    length statistics
-    length  : length of cable
-    count   : count of cables
+    This notifies the topology of the length of cables generated. This
+    is used by the topology to generate topology specific cable length
+    statistics.
+
+    Args:
+      length  : length of cable
+      count   : count of cables
     """
-    pass  # this is only used when desired by the topology module
+    # all cables
+    if length > self._cable_groups[0][0]:
+      self._cable_groups[0][0] = length
+    if length < self._cable_groups[0][1]:
+      self._cable_groups[0][1] = length
+    self._cable_groups[0][2] += (length * count)
+    self._cable_groups[0][3] += count
+
+    # specific groups
+    if len(self._cable_groups) > 1:
+      if length > self._cable_groups[self._cable_group + 1][0]:
+        self._cable_groups[self._cable_group + 1][0] = length
+      if length < self._cable_groups[self._cable_group + 1][1]:
+        self._cable_groups[self._cable_group + 1][1] = length
+      self._cable_groups[self._cable_group + 1][2] += (length * count)
+      self._cable_groups[self._cable_group + 1][3] += count
+
 
   def info_file(self, filename):
     """
     This writes topology specific information to a file
-    filename : the file to be written
+
+    Args:
+      filename (str) : the file to be written
     """
-    raise NotImplementedError('subclasses must override this')
+    with open(filename, 'w') as fd:
+      for group in self._cable_groups:
+        ave = 0
+        if group[3] > 0:
+          ave = group[2] / group[3]
+        print('{}: ave={:.02f} min={:.02f} max={:.02f}'.format(
+          group[4], ave, group[1], group[0]), file=fd)

@@ -38,13 +38,13 @@ import layout
 import topology
 import utils
 
-class Hyperx(topology.Topology):
+class Torus(topology.Topology):
   """
-  This topology is a multi-dimensional HyperX.
+  This topology is a multi-dimensional Torus.
   """
 
   def __init__(self, **kwargs):
-    super(Hyperx, self).__init__(**kwargs)
+    super(Torus, self).__init__(**kwargs)
 
     # mandatory
     self._concentration = None
@@ -62,7 +62,7 @@ class Hyperx(topology.Topology):
       elif key == 'weights':
         assert self._weights == None, 'duplicate weights'
         self._weights = utils.str_to_int_list(kwargs[key])
-      elif key in super(Hyperx, self).using_options():
+      elif key in super(Torus, self).using_options():
         pass
       else:
         assert False, 'unknown option key: {}'.format(key)
@@ -70,15 +70,15 @@ class Hyperx(topology.Topology):
     # check mandatory were given
     assert (self._concentration != None and self._widths != None and
             self._weights != None), \
-            'concentration, widths, and weights must all be specified'
+            ('concentration, widths, and weights must all be specified')
 
     # check sizes
     if len(self._widths) != len(self._weights) and len(self._widths) > 0:
-      raise ValueError('HyperX widths and weight must be equal length')
+      raise ValueError('Torus widths and weight must be equal length')
     for width in self._widths:
-      assert width >= 2, 'HyperX widths must be > 1'
+      assert width >= 2, 'Torus widths must be > 1'
     for weight in self._weights:
-      assert weight >= 1, 'HyperX weights must be > 0'
+      assert weight >= 1, 'Torus weights must be > 0'
 
     # compute number of routers and nodes
     self._routers = functools.reduce(operator.mul, self._widths)
@@ -103,8 +103,8 @@ class Hyperx(topology.Topology):
 
   def routers(self):
     radix = self._concentration
-    for width, weight in zip(self._widths, self._weights):
-      radix += ((width - 1) * weight)
+    for weight in self._weights:
+      radix += 2 * weight
     yield radix, self._routers
 
   def _node_id(self, address):
@@ -127,9 +127,10 @@ class Hyperx(topology.Topology):
       self._set_cable_group(dim + 1)
       for source_address in topology.dim_iter(self._widths):
         source_id = self._router_id(source_address)
-        for dim_destination in range(source_address[dim] + 1,
-                                     self._widths[dim]):
-          destination_address = copy.copy(source_address)
-          destination_address[dim] = dim_destination
-          destination_id = self._router_id(destination_address)
-          yield source_id, destination_id, self._weights[dim]
+        destination_address = copy.copy(source_address)
+        if destination_address[dim] == self._widths[dim] - 1:
+          destination_address[dim] = 0
+        else:
+          destination_address[dim] += 1
+        destination_id = self._router_id(destination_address)
+        yield source_id, destination_id, self._weights[dim]

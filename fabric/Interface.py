@@ -29,34 +29,12 @@
  * POSSIBILITY OF SUCH DAMAGE.
 """
 
-from .Layout import *
-from .Coordinate import *
-
-import os
-import sys
-import importlib
-
-def generate():
-  # dynamically find and import modules
-  this_dir = os.path.dirname(__file__)
-  impl_dir = os.path.join(this_dir, 'impl')
-  models = {}
-  if os.path.isdir(impl_dir):
-    for filename in os.listdir(impl_dir):
-      if filename.endswith('.py'):
-        model = filename[:-3]
-        module = os.path.basename(this_dir) + '.impl.' + model
-        module = importlib.import_module(module)
-        constructor = getattr(module, model)
-        models[filename[:-3]] = constructor
-
-  # create and return a factory function
-  def factory(model, nodes, routers, **kwargs):
-    if model in models:
-      return models[model](nodes, routers, **kwargs)
-    raise ValueError('Layout model \'{}\' not loaded'.format(model))
-  return factory
-
-# set the fabric factory
-setattr(sys.modules[__name__], 'factory', generate())
-delattr(sys.modules[__name__], 'generate')
+class Interface(object):
+  """
+  A class to hold information about a interface
+  """
+  def __init__(self, interface_radix):
+    self.radix = interface_radix
+    self.tech = None
+    self.cost = None
+    self.power = None

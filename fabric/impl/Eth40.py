@@ -62,11 +62,16 @@ class Eth40(fabric.Fabric):
       (30.0,  'aoc', 180,  1.5*2),
       (50.0,  'aoc', 200,  1.5*2),
       (75.0,  'aoc', 230,  1.5*2),
-      (100.0, 'aoc', 250,  1.5*2)]
+      (100.0, 'aoc', 250,  1.5*2),
+      (200.0, 'aoc', 650,  1.5*2)]  # a guess
+
+  def _make_interface(self, minimum_radix):
+    assert minimum_radix <= 1, 'Eth40 only supports 1 port interfaces'
+    return fabric.Interface(1)
 
   def _make_router(self, minimum_radix):
-    assert minimum_radix <= 32, 'Eth40 only supports 32 port routers'
-    return fabric.Router(32)
+    assert minimum_radix <= 64, 'Eth40 only supports 64 port routers'
+    return fabric.Router(64)
 
   def _make_cable(self, minimum_length):
     for clen, ctype, ccost, cpower in self._options:
@@ -76,6 +81,11 @@ class Eth40(fabric.Fabric):
         else:
           return fabric.Cable(minimum_length, minimum_length)
     assert False, 'no cable available for length: {}'.format(minimum_length)
+
+  def _set_interface_attributes(self, interface, count):
+    interface.tech = '40GbE'
+    interface.cost = 500
+    interface.power = 50
 
   def _set_router_attributes(self, router, count):
     router.tech = '40GbE'

@@ -30,8 +30,9 @@
 """
 
 from .Cable import *
-from .Router import *
 from .Fabric import *
+from .Interface import *
+from .Router import *
 
 import os
 import sys

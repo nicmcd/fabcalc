@@ -30,6 +30,7 @@
 """
 
 from .Topology import *
+from .topo_util import *
 
 import os
 import sys

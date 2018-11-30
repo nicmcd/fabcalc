@@ -31,81 +31,62 @@
 
 import fabric
 
-class EDR(fabric.Fabric):
+class Kim08(fabric.Fabric):
   """
-  This is the public information about Mellanox EDR
+  This is from the Kim et al. 2008 Dragonfly paper:
+  "Technology-driven, highly-scalable dragonfly topology."
   """
 
   def __init__(self, **kwargs):
-    super(EDR, self).__init__(**kwargs)
+    super(Kim08, self).__init__(**kwargs)
 
     # parse kwargs
     for key in kwargs:
-      if key in super(EDR, self).using_options():
+      if key in super(Kim08, self).using_options():
         pass
       else:
         assert False, 'unknown option key: {}'.format(key)
 
-    # data from:
-    # https://store.mellanox.com/search.php?search_query=edr+cable&x=0&y=0
-    self._options = [
-      (0.5,   'pcc', 90,    0),
-      (1.0,   'pcc', 99,    0),
-      (1.5,   'pcc', 105,   0),
-      (2.0,   'pcc', 115,   0),
-      (3.0,   'pcc', 135,   0),
-      (5.0,   'aoc', 590,   3.5*2),
-      (10.0,  'aoc', 610,   3.5*2),
-      (15.0,  'aoc', 645,   3.5*2),
-      (20.0,  'aoc', 680,   3.5*2),
-      (30.0,  'aoc', 770,   3.5*2),
-      (50.0,  'aoc', 1100,  3.5*2),
-      (100.0, 'aoc', 1865,  3.5*2),
-      (200.0, 'aoc', 4000,  3.5*2)] # made up
-
   def _make_interface(self, minimum_radix):
-    assert minimum_radix <= 1, 'EDR only supports 1 port interfaces'
-    return fabric.Interface(1)
+    return fabric.Interface(minimum_radix)
 
   def _make_router(self, minimum_radix):
-    if minimum_radix <= 36:
-      return fabric.Router(36)
-    elif minimum_radix <= 648:
-      return fabric.Router(36)
-    else:
-      assert minimum_radix <= 648, 'EDR only supports 36 and 648 port routers'
+    return fabric.Router(minimum_radix)
 
   def _make_cable(self, minimum_length):
-    for clen, ctype, ccost, cpower in self._options:
-      if clen >= minimum_length:
-        if not self.partial_cables:
-          return fabric.Cable(minimum_length, clen)
-        else:
-          return fabric.Cable(minimum_length, minimum_length)
-    assert False, 'no cable available for length: {}'.format(minimum_length)
+    actual_length = minimum_length
+    if not self.partial_cables:
+      real_lengths = [0.5, 1, 2, 3, 4, 5, 7, 10, 15, 20, 25, 30, 50, 75, 100,
+                      150, 200]
+      found = False
+      for real_length in real_lengths:
+        if real_length >= minimum_length:
+          actual_length = real_length
+          found = True
+          break
+      assert found, 'no cable available for length: {}'.format(actual_length)
+    return fabric.Cable(minimum_length, actual_length)
 
-  def _set_interface_attributes(self, interface, count):
-    interface.tech = 'IB'
-    interface.cost = 100
-    interface.power = 50
+  def _set_interface_attributes(self, router, count):
+    # Note: the paper didn't have any interface cost/power information
+    router.tech = 'mythical'
+    router.cost = 400
+    router.power = 50
 
   def _set_router_attributes(self, router, count):
-    if router.radix == 36:
-      router.tech = 'IB'
-      router.cost = 10000
-      router.power = 250
-    elif router.radix == 648:
-      router.tech = 'IB'
-      router.cost = 250000
-      router.power = (18 + 36) * 250
-    else:
-      assert False, 'Programmer error!'
+    # Note: the paper didn't have any router cost/power information
+    router.tech = 'mythical'
+    router.cost = 1000
+    router.power = 250
 
   def _set_cable_attributes(self, cable, count):
-    for clen, ctype, ccost, cpower in self._options:
-      if clen >= cable.actual_length:
-        cable.tech = ctype
-        cable.cost = ccost
-        cable.power = cpower
-        return
-    assert False
+    ec = (1.4 * cable.actual_length) + 2.16
+    oc = (0.364 * cable.actual_length) + 9.7103
+    if ec <= oc:
+      cable.tech = 'acc'
+      cable.cost = ec
+      cable.power = 0.5*2
+    else:
+      cable.tech = 'aoc'
+      cable.cost = oc
+      cable.power = 1.5*2

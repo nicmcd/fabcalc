@@ -34,14 +34,17 @@ class Coordinate(object):
   This is a coordinate within a Layout
   """
 
-  def __init__(self, chassis, rack):
+  def __init__(self, type, bay, chassis, rack):
     """
     This constructs a Coordinate object
 
     Args:
+      type    (str) : must be 'node' or 'router'
+      bay     (int) : the bay index within the chassis
       chassis (int) : the chassis index within the rack
       rack    (int) : the rack index within the system
     """
+    self.bay = bay
     self.chassis = chassis
     self.rack = rack
 
@@ -49,4 +52,4 @@ class Coordinate(object):
     """
     Returns a string representation of this coordinate
     """
-    return '({0}-{1})'.format(self.chassis, self.rack)
+    return '({0}-{1}-{2})'.format(self.bay, self.chassis, self.rack)

@@ -31,17 +31,17 @@
 
 import fabric
 
-class EDR(fabric.Fabric):
+class NDR(fabric.Fabric):
   """
-  This is the public information about Mellanox EDR
+  This is the projected information about Mellanox NDR
   """
 
   def __init__(self, **kwargs):
-    super(EDR, self).__init__(**kwargs)
+    super(NDR, self).__init__(**kwargs)
 
     # parse kwargs
     for key in kwargs:
-      if key in super(EDR, self).using_options():
+      if key in super(NDR, self).using_options():
         pass
       else:
         assert False, 'unknown option key: {}'.format(key)
@@ -49,22 +49,22 @@ class EDR(fabric.Fabric):
     # data from:
     # https://store.mellanox.com/search.php?search_query=edr+cable&x=0&y=0
     self._options = [
-      (0.5,   'pcc', 90,    0),
-      (1.0,   'pcc', 99,    0),
-      (1.5,   'pcc', 105,   0),
-      (2.0,   'pcc', 115,   0),
-      (3.0,   'pcc', 135,   0),
-      (5.0,   'aoc', 590,   3.5*2),
-      (10.0,  'aoc', 610,   3.5*2),
-      (15.0,  'aoc', 645,   3.5*2),
-      (20.0,  'aoc', 680,   3.5*2),
-      (30.0,  'aoc', 770,   3.5*2),
-      (50.0,  'aoc', 1100,  3.5*2),
-      (100.0, 'aoc', 1865,  3.5*2),
-      (200.0, 'aoc', 4000,  3.5*2)] # made up
+      (0.5,   'pcc', 90*2.5,    0),
+      (1.0,   'pcc', 99*2.5,    0),
+      (1.5,   'pcc', 105*2.5,   0),
+      (2.0,   'pcc', 500*2.5,   0),
+      (3.0,   'pcc', 550*2.5,   0),
+      (5.0,   'aoc', 590*2.5,   3.5*2),
+      (10.0,  'aoc', 610*2.5,   3.5*2),
+      (15.0,  'aoc', 645*2.5,   3.5*2),
+      (20.0,  'aoc', 680*2.5,   3.5*2),
+      (30.0,  'aoc', 770*2.5,   3.5*2),
+      (50.0,  'aoc', 1100*2.5,  3.5*2),
+      (100.0, 'aoc', 1865*2.5,  3.5*2),
+      (200.0, 'aoc', 4000*2.5,  3.5*2)] # made up
 
   def _make_interface(self, minimum_radix):
-    assert minimum_radix <= 1, 'EDR only supports 1 port interfaces'
+    assert minimum_radix <= 1, 'NDR only supports 1 port interfaces'
     return fabric.Interface(1)
 
   def _make_router(self, minimum_radix):
@@ -73,7 +73,7 @@ class EDR(fabric.Fabric):
     elif minimum_radix <= 648:
       return fabric.Router(36)
     else:
-      assert minimum_radix <= 648, 'EDR only supports 36 and 648 port routers'
+      assert minimum_radix <= 648, 'NDR only supports 36 and 648 port routers'
 
   def _make_cable(self, minimum_length):
     for clen, ctype, ccost, cpower in self._options:

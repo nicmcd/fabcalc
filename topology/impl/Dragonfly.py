@@ -39,8 +39,7 @@ import utils
 
 class Dragonfly(topology.Topology):
   """
-  This topology is a standard Dragonfly (1d-1d). The concentration just assumes
-  all nodes sit next to the switch chassis.
+  This topology is a standard Dragonfly (1d-1d).
   """
 
   def __init__(self, **kwargs):
@@ -52,7 +51,6 @@ class Dragonfly(topology.Topology):
     self._local_weight = None
     self._global_width = None
     self._global_weight = None
-    self._chassis = None  # chassis per rack
 
     # parse kwargs
     for key in kwargs:
@@ -71,9 +69,6 @@ class Dragonfly(topology.Topology):
       elif key == 'global_weight':
         assert self._global_weight == None, 'duplicate global weight'
         self._global_weight = int(kwargs[key])
-      elif key == 'chassis':
-        assert self._chassis == None, 'duplicate chassis'
-        self._chassis = int(kwargs[key])
       elif key in super(Dragonfly, self).using_options():
         pass
       else:
@@ -84,84 +79,70 @@ class Dragonfly(topology.Topology):
             self._local_width != None and
             self._local_weight != None and
             self._global_width != None and
-            self._global_weight != None and
-            self._chassis != None), \
+            self._global_weight != None), \
             ('concentration, local_width, local_weight, global_width, '
-             'global weight, and chassis must all be specified')
+             'and global weight must all be specified')
 
     # compute number of routers and nodes
     self._routers = self._local_width * self._global_width
     self._nodes = self._routers * self._concentration
 
     # determine ports on routers
-    self._local_ports = ((self._local_width - 1) * self._local_weight)
-    self._group_ports = ((self._global_width - 1) * self._global_weight)
+    self._local_ports = (self._local_width - 1) * self._local_weight
+    self._group_ports = (self._global_width - 1) * self._global_weight
     self._global_ports = math.ceil(self._group_ports / self._local_width)
 
-    # make sure groups fit into an integer number of racks
-    assert self._local_width % self._chassis == 0, \
-      ('groups must fit into an integer number of racks, i.e.,\n'
-       '"chassis" must evenly divide "local width"')
-    self._racks_per_group = self._local_width // self._chassis
+    # length groups
+    self._create_cable_groups(['Nodes', 'Local', 'Global'])
 
-    # determine total number of racks
-    self._racks = math.ceil((self._global_width * self._local_width) /
-                            self._chassis)
-
-    # lengths
-    self._len_fsm = -1
-    self._cable_lens = [
-      # max, min, lencnt, cblcnt
-      [0, 99999999, 0, 0],
-      [0, 99999999, 0, 0],
-      [0, 99999999, 0, 0],
-      [0, 99999999, 0, 0]
-    ]
+    # compute logical dimensional address distances
+    self._router_distances = [1, self._local_width]
+    self._node_distances = [1, self._concentration, self._local_width *
+                            self._concentration]
 
   def structure(self):
-    return self._nodes, self._chassis, self._racks
+    return self._nodes, self._routers
+
+  def interfaces(self):
+    yield 1, self._nodes
 
   def routers(self):
     radix = self._concentration + self._local_ports + self._global_ports
     yield radix, self._routers
 
-  def _location(self, lcl, gbl):
-    chassis = lcl % self._chassis
-    rack = gbl * self._racks_per_group + lcl // self._chassis
-    return chassis, rack
+  def _node_id(self, address):
+    return sum(i*j for i,j in zip(address, self._node_distances))
 
-  def notify_length(self, length, count):
-    # specific dimension
-    if length > self._cable_lens[self._len_fsm][0]:
-      self._cable_lens[self._len_fsm][0] = length
-    if length < self._cable_lens[self._len_fsm][1]:
-      self._cable_lens[self._len_fsm][1] = length
-    self._cable_lens[self._len_fsm][2] += (length * count)
-    self._cable_lens[self._len_fsm][3] += count
+  def _router_id(self, address):
+    return sum(i*j for i,j in zip(address, self._router_distances))
 
-    # all cables
-    if length > self._cable_lens[0][0]:
-      self._cable_lens[0][0] = length
-    if length < self._cable_lens[0][1]:
-      self._cable_lens[0][1] = length
-    self._cable_lens[0][2] += (length * count)
-    self._cable_lens[0][3] += count
+  def external_cables(self):
+    self._set_cable_group(0)
+    for router_address in topology.dim_iter(
+        [self._local_width, self._global_width]):
+      router_id = self._router_id(router_address)
+      for node in range(self._concentration):
+        node_address = [node] + router_address
+        node_id = self._node_id(node_address)
+        yield node_id, router_id, 1
 
-  def cables(self):
-    # connect group
-    self._len_fsm = 1
+  def internal_cables(self):
+    # local
+    self._set_cable_group(1)
     for group in range(self._global_width):
       for lcl_dist in range(1, self._local_width):
         for lcl_src in range(0, self._local_width - lcl_dist):
           lcl_dst = lcl_src + lcl_dist
-          src_chassis, src_rack = self._location(lcl_src, group)
-          dst_chassis, dst_rack = self._location(lcl_dst, group)
-          source = layout.Coordinate(src_chassis, src_rack)
-          destination = layout.Coordinate(dst_chassis, dst_rack)
-          yield source, destination, self._local_weight
 
-    # connect groups
-    self._len_fsm = 2
+          source_address = [lcl_src, group]
+          destination_address = [lcl_dst, group]
+
+          source_id = self._router_id(source_address)
+          destination_id = self._router_id(destination_address)
+          yield source_id, destination_id, self._local_weight
+
+    # global
+    self._set_cable_group(2)
     for gbl_dist in range(1, self._global_width):
       for src_grp in range(0, self._global_width - gbl_dist):
         dst_grp = src_grp + gbl_dist
@@ -172,16 +153,10 @@ class Dragonfly(topology.Topology):
           dst_grp_port = (src_grp + ((self._global_width - 1) * weight))
           assert dst_grp_port < self._group_ports
           dst_lcl = dst_grp_port // self._global_ports
-          src_chassis, src_rack = self._location(src_lcl, src_grp)
-          dst_chassis, dst_rack = self._location(dst_lcl, dst_grp)
-          source = layout.Coordinate(src_chassis, src_rack)
-          destination = layout.Coordinate(dst_chassis, dst_rack)
-          yield source, destination, 1
 
-  def info_file(self, filename):
-    with open(filename, 'w') as fd:
-      for idx, label in enumerate(['all', 'local', 'global']):
-        print('{}: ave={:.02f} min={:.02f} max={:.02f}'.format(
-          label, self._cable_lens[0][2] / self._cable_lens[idx][3],
-          self._cable_lens[idx][1],
-          self._cable_lens[idx][0]), file=fd)
+          source_address = [src_lcl, src_grp]
+          destination_address = [dst_lcl, dst_grp]
+
+          source_id = self._router_id(source_address)
+          destination_id = self._router_id(destination_address)
+          yield source_id, destination_id, 1

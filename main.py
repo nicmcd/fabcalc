@@ -45,24 +45,30 @@ import utils
 def main(args):
   # convert the argparse options to kwargs style dicts
   topo_opts = dict([] if not args.topts else args.topts)
-  fabric_opts = dict([] if not args.fopts else args.fopts)
   layout_opts = dict([] if not args.lopts else args.lopts)
+  fabric_opts = dict([] if not args.fopts else args.fopts)
   if args.verbose:
-    print('Topo Options   : {}'.format(topo_opts))
-    print('Fabric Options : {}'.format(fabric_opts))
-    print('Layout Options : {}'.format(layout_opts))
+    print('Topology Options : {}'.format(topo_opts))
+    print('Layout Options   : {}'.format(layout_opts))
+    print('Fabric Options   : {}'.format(fabric_opts))
 
   # construct the models
   topo_model = topology.factory(args.topology, **topo_opts)
-  nodes, chassis, racks = topo_model.structure()
+  nodes, routers = topo_model.structure()
+  layout_model = layout.factory(args.layout, nodes, routers, **layout_opts)
   fabric_model = fabric.factory(args.fabric, **fabric_opts)
-  layout_model = layout.factory(args.layout, chassis, racks, **layout_opts)
 
   # generate routers and cables
+  for radix, count in topo_model.interfaces():
+    fabric_model.add_interface(radix, count)
   for radix, count in topo_model.routers():
     fabric_model.add_router(radix, count)
-  for source, destination, count in topo_model.cables():
-    length = layout_model.length(source, destination, count)
+  for node, router, count in topo_model.external_cables():
+    length = layout_model.external_cable(node, router, count)
+    topo_model.notify_length(length, count)
+    fabric_model.add_cable(length, count)
+  for router1, router2, count in topo_model.internal_cables():
+    length = layout_model.internal_cable(router1, router2, count)
     topo_model.notify_length(length, count)
     fabric_model.add_cable(length, count)
 
@@ -76,6 +82,8 @@ def main(args):
   if args.bargraph is not None:
     fabric_model.cable_bargraph(plt, args.bargraph, args.bargraph_xmax,
                                 args.bargraph_cost, args.bargraph_power)
+  if args.interface_csv is not None:
+    fabric_model.interface_csv(args.interface_csv)
   if args.router_csv is not None:
     fabric_model.router_csv(args.router_csv)
   if args.cable_csv is not None:
@@ -118,6 +126,8 @@ if __name__ == '__main__':
                   help='plot cost in bargraph')
   ap.add_argument('--bargraph_power', type=utils.str_to_bool, default=True,
                   help='plot power in bargraph')
+  ap.add_argument('--interface_csv', type=str,
+                  help='CSV file of interface information')
   ap.add_argument('--router_csv', type=str,
                   help='CSV file of router information')
   ap.add_argument('--cable_csv', type=str,

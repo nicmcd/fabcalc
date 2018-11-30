@@ -48,47 +48,75 @@ class Layout(object):
     """
     Tells the base class which option keys it uses
     """
-    return ['racks_per_row']
+    return []
 
-  def __init__(self, chassis, total_racks, **kwargs):
+  def __init__(self, nodes, routers, **kwargs):
     """
     Constructs a Layout object
 
     Args:
-      chassis (int) : number of vertical chassis units per rack
-      total_racks (int) : total number of racks
+      node    (int) : number of nodes
+      routers (int) : number of routers
     """
+    self.nodes = nodes
+    self.routers = routers
 
-    self.chassis = chassis
+  def _set_racking(self, total_racks, racks_per_row):
+    """
+    Subclasses must call this within their constructor
+
+    Args:
+      total_racks (int)   : total number of racks
+      racks_per_row (int) : number of racks per row
+    """
+    assert racks_per_row <= total_racks, 'or racks per row than total racks!'
     self.total_racks = total_racks
-    self.racks_per_row = int(kwargs.get('racks_per_row', 16))
-    self.rows = math.ceil(total_racks / self.racks_per_row)
+    self.racks_per_row = racks_per_row
+    self.rows = math.ceil(self.total_racks / self.racks_per_row)
 
     # create an array to hold number of cables between racks
     #  these are counters for cable trays
-    self._actual_racks_per_row = min(self.racks_per_row, self.total_racks)
-    self._row_cables = numpy.zeros((self.rows, self._actual_racks_per_row - 1))
-    self._col_cables = numpy.zeros((self._actual_racks_per_row, self.rows - 1))
+    self._row_cables = numpy.zeros((self.rows, self.racks_per_row - 1))
+    self._col_cables = numpy.zeros((self.racks_per_row, self.rows - 1))
 
-  def length(self, source, destination, count):
+  def external_cable(self, node, router, count):
     """
-    This returns a length in meters from the source to the destination
+    This returns registers a cable from a node to a router.
+    This function returns the length of the cable in meters.
 
     Args:
-      source (Coordinate) : the source coordinate of the cable
-      destination (Coordinate) : the destination coordinate of the cable
-      count (int) : the count of cables following this route
+      node   (int) : the node this cable connects to
+      router (int) : the router this cable connects to
+      count  (int) : the count of cables following this route
+
+    Returns:
+      (float) : length of cable in meters
     """
     raise NotImplementedError('subclasses must implement this')
 
-  def row_cable_strand(self, row, start, end, count):
+  def internal_cable(self, router1, router2, count):
+    """
+    This returns registers a cable from a router to a router.
+    This function returns the length of the cable in meters.
+
+    Args:
+      router1 (int) : the first router this cable connects to
+      router2 (int) : the second router this cable connects to
+      count   (int) : the count of cables following this route
+
+    Returns:
+      (float) : length of cable in meters
+    """
+    raise NotImplementedError('subclasses must implement this')
+
+  def _row_cable_strand(self, row, start, end, count):
     """
     This adds a cable strand down a row for cable tray accounting
 
     Args:
-      row (int) : row ID
+      row   (int) : row ID
       start (int) : column rack ID where strand starts
-      end (int) : column rack ID where strand ends
+      end   (int) : column rack ID where strand ends
       count (int) : number of cables being accounted
     """
     assert end >= start, 'end must be >= start'
@@ -96,14 +124,14 @@ class Layout(object):
       for loc in range(start, end):
         self._row_cables[row, loc] += count
 
-  def col_cable_strand(self, col, start, end, count):
+  def _col_cable_strand(self, col, start, end, count):
     """
     This adds a cable strand down a column for cable tray accounting
 
     Args:
-      row (int) : column ID
+      row   (int) : column ID
       start (int) : row rack ID where strand starts
-      end (int) : row rack ID where strand ends
+      end   (int) : row rack ID where strand ends
       count (int) : row of cables being accounted
     """
     assert end >= start, 'end must be >= start'
@@ -114,8 +142,10 @@ class Layout(object):
   def cable_tray_csv(self, filename):
     """
     Writes the cable tray information to the specified CSV file
-    """
 
+    Args:
+      filename (str) : name of file to be written
+    """
     with open(filename, 'w') as fd:
       # loop over each row
       for row in range(self.rows):
@@ -128,8 +158,8 @@ class Layout(object):
 
         # print the row-to-row
         if row < self.rows - 1:
-          for col in range(self._actual_racks_per_row):
+          for col in range(self.racks_per_row):
             value = self._col_cables[col, row]
-            last = col == self._actual_racks_per_row - 1
+            last = col == self.racks_per_row - 1
             fd.write('{}{}'.format(value, '' if last else ',-,'))
           fd.write('\n')

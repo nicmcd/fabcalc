@@ -58,11 +58,26 @@ class Fabric(object):
     # implementations must respect this
     self.partial_cables = utils.str_to_bool(kwargs.get('partial_cables', '0'))
 
+    self._interfaces = {}  # radix->[router, count]
     self._routers = {}  # radix->[router, count]
     self._cables = {}  # actual_length->[cable,count]
 
     self._cable_granularity = utils.meters(
       kwargs.get('cable_granularity', '0.5m'))
+
+  def add_interface(self, minimum_radix, count=1):
+    """
+    Adds interfaces to the fabric
+    """
+    assert count > 0, 'a zero number of interfaces?'
+
+    # make the router
+    interface = self._make_interface(minimum_radix)
+
+    # add the router
+    if interface.radix not in self._interfaces:
+      self._interfaces[interface.radix] = [interface, 0]
+    self._interfaces[interface.radix][1] += count
 
   def add_router(self, minimum_radix, count=1):
     """
@@ -98,8 +113,11 @@ class Fabric(object):
 
   def set_attributes(self):
     """
-    This is called after all routers and cables have added to the model.
+    This is called after all interface, routers, and cables have added to the
+    model.
     """
+    for _, ii in self._interfaces.items():
+      self._set_interface_attributes(ii[0], ii[1])
     for _, ri in self._routers.items():
       self._set_router_attributes(ri[0], ri[1])
     for _, ci in self._cables.items():
@@ -109,6 +127,17 @@ class Fabric(object):
     """
     Writes a summary JSON file
     """
+    # determine total interface values
+    interface_count = 0
+    interface_cost = 0
+    interface_power = 0
+    for radix in sorted(self._interfaces):
+      interface_count += self._interfaces[radix][1]
+      interface_cost += (self._interfaces[radix][0].cost *
+                         self._interfaces[radix][1])
+      interface_power += (self._interfaces[radix][0].power *
+                          self._interfaces[radix][1])
+
     # determine total router values
     router_count = 0
     router_cost = 0
@@ -128,14 +157,17 @@ class Fabric(object):
       cable_power += (self._cables[length][0].power * self._cables[length][1])
 
     # totals and relatives
-    total_cost = router_cost + cable_cost
+    total_cost = interface_cost + router_cost + cable_cost
     relative_cost = total_cost / nodes
-    total_power = router_power + cable_power
+    total_power = interface_power + router_power + cable_power
     relative_power = total_power / nodes
 
     # create dict of information
     data = OrderedDict()
     data['nodes'] = '{0:,}'.format(nodes)
+    data['interface count'] = '{0:,}'.format(interface_count)
+    data['interface cost'] = '${0:,.00f}'.format(interface_cost)
+    data['interface power'] = '{0:,.00f} Watts'.format(interface_power)
     data['router count'] = '{0:,}'.format(router_count)
     data['router cost'] = '${0:,.00f}'.format(router_cost)
     data['router power'] = '{0:,.00f} Watts'.format(router_power)
@@ -251,6 +283,35 @@ class Fabric(object):
     fig.subplots_adjust(top=0.94)
     fig.savefig(filename)
 
+  def interface_csv(self, filename):
+    """
+    This generates a CSV file containing interface information
+    """
+    # gather raw data
+    interface_radices = sorted(self._interfaces)
+    interface_counts = [self._interfaces[rdx][1]
+                        for rdx in sorted(self._interfaces)]
+    interface_costs = [self._interfaces[rdx][1] * self._interfaces[rdx][0].cost
+                       for rdx in sorted(self._interfaces)]
+    interface_powers = [self._interfaces[rdx][1] *
+                        self._interfaces[rdx][0].power
+                        for rdx in sorted(self._interfaces)]
+
+    # create a gridstats object to hold the data
+    grid = gridstats.GridStats()
+    fields = ['Count', 'Cost ($)', 'Power (W)']
+    grid.create('Radix', interface_radices, fields)
+
+    # load all data
+    for radix, count, cost, power in zip(
+        interface_radices, interface_counts, interface_costs, interface_powers):
+      grid.set(radix, 'Count', count)
+      grid.set(radix, 'Cost ($)', '{0:.00f}'.format(cost))
+      grid.set(radix, 'Power (W)', '{0:.00f}'.format(power))
+
+    # write the file
+    grid.write(filename)
+
   def router_csv(self, filename):
     """
     This generates a CSV file containing router information
@@ -263,7 +324,6 @@ class Fabric(object):
                    for rdx in sorted(self._routers)]
     router_powers = [self._routers[rdx][1] * self._routers[rdx][0].power
                     for rdx in sorted(self._routers)]
-
 
     # create a gridstats object to hold the data
     grid = gridstats.GridStats()
@@ -307,6 +367,12 @@ class Fabric(object):
 
     # write the file
     grid.write(filename)
+
+  def _make_interface(self, minimum_radix):
+    """
+    Makes an interface
+    """
+    raise NotImplementedError('subclasses MUST implement this')
 
   def _make_router(self, minimum_radix):
     """

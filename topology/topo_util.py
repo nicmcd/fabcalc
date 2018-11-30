@@ -29,54 +29,57 @@
  * POSSIBILITY OF SUCH DAMAGE.
 """
 
-import fabric
+import copy
+import functools
+import operator
 
-class KimDally(fabric.Fabric):
+def dim_iter(widths):
   """
-  This is from the Kim et al. 2008 Dragonfly paper:
-  "Technology-driven, highly-scalable dragonfly topology."
+  This iterates over all addresses in dimension order
   """
 
-  def __init__(self, **kwargs):
-    super(KimDally, self).__init__(**kwargs)
+  for width in widths:
+    assert width >= 2, 'widths must be >= 2'
 
-    # parse kwargs
-    for key in kwargs:
-      if key in super(KimDally, self).using_options():
-        pass
-      else:
-        assert False, 'unknown option key: {}'.format(key)
+  dims = len(widths)
+  state = [0] * dims
+  more = True
 
-  def _make_router(self, minimum_radix):
-    return fabric.Router(minimum_radix)
-
-  def _make_cable(self, minimum_length):
-    actual_length = minimum_length
-    if not self.partial_cables:
-      real_lengths = [0.5, 1, 2, 3, 4, 5, 7, 10, 15, 20, 25, 30, 50, 75, 100]
-      found = False
-      for real_length in real_lengths:
-        if real_length >= minimum_length:
-          actual_length = real_length
-          found = True
+  while more:
+    address = copy.copy(state)
+    for dim in range(dims):
+      if state[dim] == widths[dim] - 1:
+        if dim == dims - 1:
+          more = False
           break
-      assert found, 'no cable available for length: {}'.format(actual_length)
-    return fabric.Cable(minimum_length, actual_length)
+        else:
+          state[dim] = 0
+      else:
+        state[dim] += 1
+        break
+    yield address
 
-  def _set_router_attributes(self, router, count):
-    # Note: the paper didn't have any router cost/power information
-    router.tech = 'mythical'
-    router.cost = 1000
-    router.power = 250
-
-  def _set_cable_attributes(self, cable, count):
-    ec = (1.4 * cable.actual_length) + 2.16
-    oc = (0.364 * cable.actual_length) + 9.7103
-    if ec <= oc:
-      cable.tech = 'acc'
-      cable.cost = ec
-      cable.power = 0.5*2
+def dim_router_distances(widths):
+  """
+  This generates dimensional router distances
+  """
+  router_distances = [0] * len(widths)
+  for idx in range(len(widths)):
+    if idx == 0:
+      router_distances[idx] = 1
     else:
-      cable.tech = 'aoc'
-      cable.cost = oc
-      cable.power = 1.5*2
+      router_distances[idx] = functools.reduce(operator.mul, widths[0:idx])
+  return router_distances
+
+def dim_node_distances(concentration, widths):
+  """
+  This generates dimensional node distances
+  """
+  node_distances = [0] * (len(widths) + 1)
+  nwidths = [concentration] + widths
+  for idx in range(len(widths) + 1):
+    if idx == 0:
+      node_distances[idx] = 1
+    else:
+      node_distances[idx] = functools.reduce(operator.mul, nwidths[0:idx])
+  return node_distances
