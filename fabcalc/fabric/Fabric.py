@@ -36,7 +36,7 @@ import math
 import numpy
 import sys
 
-import utils
+import fabcalc.utils
 
 class Fabric(object):
   """
@@ -56,13 +56,14 @@ class Fabric(object):
     Constructs a Fabric object
     """
     # implementations must respect this
-    self.partial_cables = utils.str_to_bool(kwargs.get('partial_cables', '0'))
+    self.partial_cables = fabcalc.utils.str_to_bool(
+      kwargs.get('partial_cables', '0'))
 
     self._interfaces = {}  # radix->[router, count]
     self._routers = {}  # radix->[router, count]
     self._cables = {}  # actual_length->[cable,count]
 
-    self._cable_granularity = utils.meters(
+    self._cable_granularity = fabcalc.utils.meters(
       kwargs.get('cable_granularity', '0.5m'))
 
   def add_interface(self, minimum_radix, count=1):

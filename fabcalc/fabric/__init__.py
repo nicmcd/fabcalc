@@ -41,6 +41,7 @@ import importlib
 def generate():
   # dynamically find and import modules
   this_dir = os.path.dirname(__file__)
+  print(this_dir)
   impl_dir = os.path.join(this_dir, 'impl')
   models = {}
   if os.path.isdir(impl_dir):
